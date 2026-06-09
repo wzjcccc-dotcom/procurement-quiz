@@ -15,6 +15,7 @@ const TYPE_LABELS = {
 
 const state = {
   data: null,
+  dataPromise: null,
   selectedMode: null,
   currentView: "home",
   currentQuiz: null,
@@ -63,29 +64,17 @@ const refs = {
   closeWrongStatsButton: document.querySelector("#close-wrong-stats-button"),
 };
 
-init().catch((error) => {
-  console.error(error);
-  showMessage("題庫載入失敗，請確認 questions.cleaned.js 或 questions.cleaned.json 可正常讀取。");
-});
+init();
 
-async function init() {
-  if (window.__QUESTION_DATA__) {
-    state.data = window.__QUESTION_DATA__;
-  } else {
-    const response = await fetch("./questions.cleaned.json");
-    if (!response.ok) {
-      throw new Error(`Failed to load questions: ${response.status}`);
-    }
-    state.data = await response.json();
-  }
-
-  hydrateSetupOptions();
+function init() {
   bindEvents();
 }
 
 function bindEvents() {
   refs.featureCards.forEach((card) => {
-    card.addEventListener("click", () => handleFeatureAction(card.dataset.action));
+    card.addEventListener("click", () => {
+      void handleFeatureAction(card.dataset.action);
+    });
   });
 
   refs.setupForm.addEventListener("submit", (event) => {
@@ -116,8 +105,50 @@ function hydrateSetupOptions() {
     .join("");
 }
 
-function handleFeatureAction(action) {
+async function ensureDataLoaded() {
+  if (state.data) {
+    return state.data;
+  }
+
+  if (state.dataPromise) {
+    return state.dataPromise;
+  }
+
+  showMessage("題庫載入中，請稍候...");
+
+  state.dataPromise = (async () => {
+    if (window.__QUESTION_DATA__) {
+      return window.__QUESTION_DATA__;
+    }
+
+    const response = await fetch("./questions.cleaned.json");
+    if (!response.ok) {
+      throw new Error(`Failed to load questions: ${response.status}`);
+    }
+    return response.json();
+  })();
+
+  try {
+    state.data = await state.dataPromise;
+    hydrateSetupOptions();
+    hideMessage();
+    return state.data;
+  } catch (error) {
+    state.dataPromise = null;
+    console.error(error);
+    showMessage("題庫載入失敗，請重新整理頁面後再試一次。");
+    throw error;
+  }
+}
+
+async function handleFeatureAction(action) {
   hideMessage();
+
+  try {
+    await ensureDataLoaded();
+  } catch {
+    return;
+  }
 
   if (action === "history") {
     renderHistory();
@@ -181,7 +212,13 @@ function hideAllOverlayViews() {
   refs.wrongStatsView.hidden = true;
 }
 
-function startQuiz() {
+async function startQuiz() {
+  try {
+    await ensureDataLoaded();
+  } catch {
+    return;
+  }
+
   let quiz;
 
   try {
