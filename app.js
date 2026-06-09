@@ -16,16 +16,21 @@ const TYPE_LABELS = {
 const state = {
   data: null,
   selectedMode: null,
+  currentView: "home",
   currentQuiz: null,
   timerId: null,
 };
 
 const refs = {
   message: document.querySelector("#message"),
-  modeCards: [...document.querySelectorAll(".mode-card")],
+  featureCards: [...document.querySelectorAll(".feature-card")],
+  overlay: document.querySelector("#overlay"),
+  overlayBadge: document.querySelector("#overlay-badge"),
+  overlayTitle: document.querySelector("#overlay-title"),
+  overlaySubtitle: document.querySelector("#overlay-subtitle"),
+  closeOverlayButton: document.querySelector("#close-overlay-button"),
+  setupView: document.querySelector("#setup-view"),
   setupForm: document.querySelector("#setup-form"),
-  startButton: document.querySelector("#start-button"),
-  resetSetupButton: document.querySelector("#reset-setup-button"),
   mode1Config: document.querySelector("#mode1-config"),
   mode2Config: document.querySelector("#mode2-config"),
   mode3Config: document.querySelector("#mode3-config"),
@@ -33,30 +38,34 @@ const refs = {
   mode1Type: document.querySelector("#mode1-type"),
   mode2Type: document.querySelector("#mode2-type"),
   mode3Subject: document.querySelector("#mode3-subject"),
-  setupView: document.querySelector("#setup-view"),
+  startButton: document.querySelector("#start-button"),
+  cancelSetupButton: document.querySelector("#cancel-setup-button"),
   quizView: document.querySelector("#quiz-view"),
-  resultView: document.querySelector("#result-view"),
   quizModeLabel: document.querySelector("#quiz-mode-label"),
-  quizTitle: document.querySelector("#quiz-title"),
-  quizSubtitle: document.querySelector("#quiz-subtitle"),
-  timerBox: document.querySelector("#timer-box"),
   progressBox: document.querySelector("#progress-box"),
-  quizForm: document.querySelector("#quiz-form"),
-  submitButton: document.querySelector("#submit-button"),
+  timerBox: document.querySelector("#timer-box"),
+  questionCard: document.querySelector("#question-card"),
+  feedbackPanel: document.querySelector("#feedback-panel"),
+  answerButton: document.querySelector("#answer-button"),
+  nextButton: document.querySelector("#next-button"),
   restartButton: document.querySelector("#restart-button"),
+  resultView: document.querySelector("#result-view"),
   resultTitle: document.querySelector("#result-title"),
   resultSummary: document.querySelector("#result-summary"),
   resultBreakdown: document.querySelector("#result-breakdown"),
   retryButton: document.querySelector("#retry-button"),
   backHomeButton: document.querySelector("#back-home-button"),
+  historyView: document.querySelector("#history-view"),
   historyContent: document.querySelector("#history-content"),
+  closeHistoryButton: document.querySelector("#close-history-button"),
+  wrongStatsView: document.querySelector("#wrong-stats-view"),
   wrongStatsContent: document.querySelector("#wrong-stats-content"),
-  collapseToggles: [...document.querySelectorAll(".collapse-toggle")],
+  closeWrongStatsButton: document.querySelector("#close-wrong-stats-button"),
 };
 
 init().catch((error) => {
   console.error(error);
-  showMessage("題庫載入失敗，請確認 questions.cleaned.json 存在且格式正確。");
+  showMessage("題庫載入失敗，請確認 questions.cleaned.js 或 questions.cleaned.json 可正常讀取。");
 });
 
 async function init() {
@@ -67,18 +76,16 @@ async function init() {
     if (!response.ok) {
       throw new Error(`Failed to load questions: ${response.status}`);
     }
-
     state.data = await response.json();
   }
+
   hydrateSetupOptions();
   bindEvents();
-  renderHistory();
-  renderWrongStats();
 }
 
 function bindEvents() {
-  refs.modeCards.forEach((card) => {
-    card.addEventListener("click", () => selectMode(card.dataset.mode));
+  refs.featureCards.forEach((card) => {
+    card.addEventListener("click", () => handleFeatureAction(card.dataset.action));
   });
 
   refs.setupForm.addEventListener("submit", (event) => {
@@ -86,29 +93,15 @@ function bindEvents() {
     startQuiz();
   });
 
-  refs.resetSetupButton.addEventListener("click", () => {
-    selectMode(null);
-    showMessage("");
-  });
-
-  refs.submitButton.addEventListener("click", submitQuiz);
+  refs.cancelSetupButton.addEventListener("click", closeOverlay);
+  refs.closeOverlayButton.addEventListener("click", closeOverlay);
+  refs.answerButton.addEventListener("click", submitCurrentAnswer);
+  refs.nextButton.addEventListener("click", goToNextQuestion);
   refs.restartButton.addEventListener("click", restartCurrentMode);
   refs.retryButton.addEventListener("click", restartCurrentMode);
-  refs.backHomeButton.addEventListener("click", goHome);
-
-  refs.collapseToggles.forEach((button) => {
-    button.addEventListener("click", () => {
-      const target = document.getElementById(button.dataset.target);
-      const isHidden = target.hidden;
-      target.hidden = !isHidden;
-      button.querySelector("strong").textContent = isHidden ? "點我收合" : "點我展開";
-      if (button.dataset.target === "history-panel") {
-        renderHistory();
-      } else {
-        renderWrongStats();
-      }
-    });
-  });
+  refs.backHomeButton.addEventListener("click", closeOverlay);
+  refs.closeHistoryButton.addEventListener("click", closeOverlay);
+  refs.closeWrongStatsButton.addEventListener("click", closeOverlay);
 }
 
 function hydrateSetupOptions() {
@@ -123,19 +116,74 @@ function hydrateSetupOptions() {
     .join("");
 }
 
-function selectMode(mode) {
-  state.selectedMode = mode;
-  refs.modeCards.forEach((card) => card.classList.toggle("is-active", card.dataset.mode === mode));
+function handleFeatureAction(action) {
+  hideMessage();
+
+  if (action === "history") {
+    renderHistory();
+    openOverlay("history-view", "測驗紀錄", "查看模式二與模式三最近 10 次作答結果", "最近紀錄");
+    return;
+  }
+
+  if (action === "wrongStats") {
+    renderWrongStats();
+    openOverlay("wrong-stats-view", "錯題統計", "依章節查看累積錯題排名", "章節排名");
+    return;
+  }
+
+  state.selectedMode = action;
+  openModeSetup(action);
+}
+
+function openModeSetup(mode) {
   refs.mode1Config.hidden = mode !== "mode1";
   refs.mode2Config.hidden = mode !== "mode2";
   refs.mode3Config.hidden = mode !== "mode3";
-  refs.startButton.disabled = !mode;
+
+  const titleMap = {
+    mode1: "模式一設定",
+    mode2: "模式二設定",
+    mode3: "模式三設定",
+  };
+
+  const subtitleMap = {
+    mode1: "先選章節與題型，再開始測驗",
+    mode2: "先選題型，再開始綜合測驗",
+    mode3: "先選科目，再開始模擬測驗",
+  };
+
+  openOverlay("setup-view", MODE_LABELS[mode], subtitleMap[mode], titleMap[mode]);
+}
+
+function openOverlay(viewId, badge, subtitle, title) {
+  state.currentView = viewId;
+  refs.overlay.hidden = false;
+  refs.overlayBadge.textContent = badge;
+  refs.overlayTitle.textContent = title;
+  refs.overlaySubtitle.textContent = subtitle;
+  hideAllOverlayViews();
+  document.getElementById(viewId).hidden = false;
+}
+
+function closeOverlay() {
+  clearTimer();
+  state.currentView = "home";
+  state.currentQuiz = null;
+  refs.overlay.hidden = true;
+  hideAllOverlayViews();
+}
+
+function hideAllOverlayViews() {
+  refs.setupView.hidden = true;
+  refs.quizView.hidden = true;
+  refs.resultView.hidden = true;
+  refs.historyView.hidden = true;
+  refs.wrongStatsView.hidden = true;
 }
 
 function startQuiz() {
-  hideMessage();
-
   let quiz;
+
   try {
     if (state.selectedMode === "mode1") {
       quiz = buildMode1Quiz(refs.mode1Chapter.value, refs.mode1Type.value);
@@ -144,7 +192,7 @@ function startQuiz() {
     } else if (state.selectedMode === "mode3") {
       quiz = buildMode3Quiz(refs.mode3Subject.value);
     } else {
-      showMessage("請先選擇測驗模式。");
+      showMessage("請先選擇模式。");
       return;
     }
   } catch (error) {
@@ -153,8 +201,9 @@ function startQuiz() {
   }
 
   state.currentQuiz = quiz;
-  showQuizView();
-  renderQuiz();
+  openOverlay("quiz-view", MODE_LABELS[quiz.mode], quiz.subtitle, quiz.title);
+  refs.quizModeLabel.textContent = MODE_LABELS[quiz.mode];
+  renderCurrentQuestion();
   setupTimer();
 }
 
@@ -162,16 +211,15 @@ function buildMode1Quiz(chapter, type) {
   const pool = getQuestionPool(chapter, type);
   ensureQuestionCount(pool, 10, `${chapter} ${TYPE_LABELS[type]}`);
 
-  return {
+  return createQuizState({
     mode: "mode1",
-    title: `${chapter} ${TYPE_LABELS[type]}測驗`,
-    subtitle: `隨機抽取 10 題，共 ${pool.length} 題可用`,
+    title: `${chapter}${TYPE_LABELS[type]}測驗`,
+    subtitle: "共 10 題，一題一頁，答完立即看結果",
     questions: shuffle(pool).slice(0, 10),
     meta: { chapter, type },
     scoring: null,
     timer: null,
-    answers: {},
-  };
+  });
 }
 
 function buildMode2Quiz(type) {
@@ -200,7 +248,10 @@ function buildMode2Quiz(type) {
 
   if (remaining > 0) {
     const ordered = chapters
-      .map((chapter) => ({ chapter, capacity: getQuestionPool(chapter, type).length - allocations[chapter] }))
+      .map((chapter) => ({
+        chapter,
+        capacity: getQuestionPool(chapter, type).length - allocations[chapter],
+      }))
       .filter((item) => item.capacity > 0);
 
     while (remaining > 0 && ordered.length > 0) {
@@ -222,16 +273,15 @@ function buildMode2Quiz(type) {
     shuffle(getQuestionPool(chapter, type)).slice(0, allocations[chapter])
   );
 
-  return {
+  return createQuizState({
     mode: "mode2",
     title: `${TYPE_LABELS[type]}綜合測驗`,
-    subtitle: "50 題平均分配到各章節",
+    subtitle: "共 50 題，各章節盡可能平均分配",
     questions: shuffle(questions),
     meta: { type, allocations },
     scoring: null,
     timer: null,
-    answers: {},
-  };
+  });
 }
 
 function buildMode3Quiz(subject) {
@@ -251,10 +301,10 @@ function buildMode3Quiz(subject) {
     questions.push(...shuffle(mcPool).slice(0, chapterPlan.multiple_choice));
   }
 
-  return {
+  return createQuizState({
     mode: "mode3",
     title: `${subject}模擬測驗`,
-    subtitle: "依指定章節配額抽題，含倒數與超時計時",
+    subtitle: "一題一頁作答，含倒數與超時計時",
     questions: shuffle(questions),
     meta: { subject, blueprint },
     scoring: blueprint.scoring,
@@ -262,74 +312,122 @@ function buildMode3Quiz(subject) {
       limitMs: blueprint.timeLimitMinutes * 60 * 1000,
       startedAt: Date.now(),
     },
-    answers: {},
-  };
-}
-
-function renderQuiz() {
-  const quiz = state.currentQuiz;
-  refs.quizModeLabel.textContent = MODE_LABELS[quiz.mode];
-  refs.quizTitle.textContent = quiz.title;
-  refs.quizSubtitle.textContent = quiz.subtitle;
-  refs.progressBox.textContent = `共 ${quiz.questions.length} 題`;
-  refs.quizForm.innerHTML = quiz.questions
-    .map((question, index) => renderQuestionCard(question, index + 1))
-    .join("");
-  refs.quizForm.querySelectorAll("input[type='radio']").forEach((input) => {
-    input.addEventListener("change", handleAnswerChange);
   });
 }
 
-function renderQuestionCard(question, number) {
+function createQuizState(base) {
+  return {
+    ...base,
+    currentIndex: 0,
+    answers: {},
+    questionResults: [],
+    waitingNext: false,
+  };
+}
+
+function renderCurrentQuestion() {
+  const quiz = state.currentQuiz;
+  const question = quiz.questions[quiz.currentIndex];
+  const questionNo = quiz.currentIndex + 1;
+
+  refs.progressBox.textContent = `第 ${questionNo} / ${quiz.questions.length} 題`;
+  refs.feedbackPanel.hidden = true;
+  refs.feedbackPanel.className = "feedback-panel";
+  refs.answerButton.hidden = false;
+  refs.nextButton.hidden = true;
+  refs.answerButton.disabled = true;
+  quiz.waitingNext = false;
+
   const options = question.options
     .map(
       (option) => `
         <label class="option">
-          <input
-            type="radio"
-            name="${escapeHtml(question.id)}"
-            value="${escapeHtml(option.label)}"
-            ${state.currentQuiz.answers[question.id] === option.label ? "checked" : ""}
-          />
+          <input type="radio" name="current-question" value="${escapeHtml(option.label)}" />
           <span><strong>${escapeHtml(option.label)}</strong> ${escapeHtml(option.text)}</span>
         </label>
       `
     )
     .join("");
 
-  return `
-    <article class="question-card">
-      <div class="question-card__meta">
-        <span class="tag">第 ${number} 題</span>
-        <span class="tag">來源序號 ${question.sourceNo}</span>
-        <span class="tag">${escapeHtml(question.chapter)}</span>
-        <span class="tag">${TYPE_LABELS[question.type]}</span>
-      </div>
-      <h3>${escapeHtml(question.questionText)}</h3>
-      <div class="option-list">${options}</div>
-    </article>
+  refs.questionCard.innerHTML = `
+    <div class="question-card__meta">
+      <span class="tag">來源序號 ${question.sourceNo}</span>
+      <span class="tag">${escapeHtml(question.chapter)}</span>
+      <span class="tag">${TYPE_LABELS[question.type]}</span>
+    </div>
+    <h3>${escapeHtml(question.questionText)}</h3>
+    <div class="option-list">${options}</div>
   `;
+
+  refs.questionCard.querySelectorAll("input[type='radio']").forEach((input) => {
+    input.addEventListener("change", () => {
+      refs.answerButton.disabled = false;
+    });
+  });
 }
 
-function handleAnswerChange(event) {
-  state.currentQuiz.answers[event.target.name] = event.target.value;
-  const answered = Object.keys(state.currentQuiz.answers).length;
-  refs.progressBox.textContent = `已作答 ${answered} / ${state.currentQuiz.questions.length} 題`;
+function submitCurrentAnswer() {
+  const quiz = state.currentQuiz;
+  if (!quiz || quiz.waitingNext) return;
+
+  const selected = refs.questionCard.querySelector("input[name='current-question']:checked");
+  if (!selected) {
+    showMessage("請先選擇答案。");
+    return;
+  }
+
+  hideMessage();
+
+  const question = quiz.questions[quiz.currentIndex];
+  const answer = selected.value;
+  const isCorrect = answer === question.answer;
+
+  quiz.answers[question.id] = answer;
+  quiz.questionResults.push({ question, selected: answer, isCorrect });
+  quiz.waitingNext = true;
+
+  refs.questionCard.querySelectorAll("input[type='radio']").forEach((input) => {
+    input.disabled = true;
+    const wrapper = input.closest(".option");
+    if (input.value === question.answer) {
+      wrapper.classList.add("option--correct");
+    }
+    if (input.checked && input.value !== question.answer) {
+      wrapper.classList.add("option--wrong");
+    }
+  });
+
+  refs.feedbackPanel.hidden = false;
+  refs.feedbackPanel.classList.add(isCorrect ? "feedback-panel--correct" : "feedback-panel--wrong");
+  refs.feedbackPanel.innerHTML = `
+    <strong>${isCorrect ? "答對了" : "答錯了"}</strong>
+    <p>正確答案：${escapeHtml(question.answer)}</p>
+  `;
+
+  refs.answerButton.hidden = true;
+  refs.nextButton.hidden = false;
+  refs.nextButton.textContent =
+    quiz.currentIndex === quiz.questions.length - 1 ? "看測驗結果" : "下一題";
 }
 
-function submitQuiz() {
+function goToNextQuestion() {
   const quiz = state.currentQuiz;
   if (!quiz) return;
 
+  if (quiz.currentIndex === quiz.questions.length - 1) {
+    finishQuiz();
+    return;
+  }
+
+  quiz.currentIndex += 1;
+  renderCurrentQuestion();
+}
+
+function finishQuiz() {
+  const quiz = state.currentQuiz;
   clearTimer();
 
-  const results = quiz.questions.map((question) => {
-    const selected = quiz.answers[question.id] ?? null;
-    const isCorrect = selected === question.answer;
-    return { question, selected, isCorrect };
-  });
-
-  const stats = calculateStats(quiz, results);
+  const stats = calculateStats(quiz, quiz.questionResults);
   persistHistoryIfNeeded(quiz, stats);
   updateWrongStats(stats.chapterStats);
   renderHistory();
@@ -386,8 +484,7 @@ function calculateStats(quiz, results) {
 }
 
 function renderResults(quiz, stats) {
-  hideAllViews();
-  refs.resultView.hidden = false;
+  openOverlay("result-view", MODE_LABELS[quiz.mode], "測驗已完成", quiz.title);
   refs.resultTitle.textContent = quiz.title;
 
   const summaryCards = [
@@ -400,20 +497,24 @@ function renderResults(quiz, stats) {
   if (quiz.mode === "mode3") {
     summaryCards.push({ label: "總分", value: stats.score });
   }
-  if (stats.timedOut && quiz.mode === "mode3") {
+  if (quiz.mode === "mode3" && stats.timedOut) {
     summaryCards.push({ label: "時間狀態", value: "已超時" });
   }
 
-  refs.resultSummary.innerHTML = `<div class="stat-grid">${summaryCards
-    .map(
-      (card) => `
-        <div class="stat-card">
-          <span>${card.label}</span>
-          <strong>${card.value}</strong>
-        </div>
-      `
-    )
-    .join("")}</div>`;
+  refs.resultSummary.innerHTML = `
+    <div class="stat-grid">
+      ${summaryCards
+        .map(
+          (card) => `
+            <div class="stat-card">
+              <span>${card.label}</span>
+              <strong>${card.value}</strong>
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
 
   if (quiz.mode === "mode1") {
     refs.resultBreakdown.innerHTML = `
@@ -673,37 +774,23 @@ function didTimeExpire(quiz) {
   return Boolean(quiz?.timer && Date.now() - quiz.timer.startedAt > quiz.timer.limitMs);
 }
 
+function restartCurrentMode() {
+  clearTimer();
+  const mode = state.currentQuiz?.mode ?? state.selectedMode;
+  state.currentQuiz = null;
+  if (mode) {
+    state.selectedMode = mode;
+    openModeSetup(mode);
+  } else {
+    closeOverlay();
+  }
+}
+
 function clearTimer() {
   if (state.timerId) {
     window.clearInterval(state.timerId);
     state.timerId = null;
   }
-}
-
-function restartCurrentMode() {
-  const lastMode = state.currentQuiz?.mode ?? state.selectedMode;
-  state.currentQuiz = null;
-  clearTimer();
-  goHome();
-  selectMode(lastMode ?? null);
-}
-
-function goHome() {
-  state.currentQuiz = null;
-  clearTimer();
-  hideAllViews();
-  refs.setupView.hidden = false;
-}
-
-function showQuizView() {
-  hideAllViews();
-  refs.quizView.hidden = false;
-}
-
-function hideAllViews() {
-  refs.setupView.hidden = true;
-  refs.quizView.hidden = true;
-  refs.resultView.hidden = true;
 }
 
 function getQuestionPool(chapter, type) {
