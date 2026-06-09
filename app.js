@@ -24,6 +24,7 @@ const state = {
 
 const refs = {
   message: document.querySelector("#message"),
+  homePanel: document.querySelector("#home-panel"),
   featureCards: [...document.querySelectorAll(".feature-card")],
   overlay: document.querySelector("#overlay"),
   overlayBadge: document.querySelector("#overlay-badge"),
@@ -47,7 +48,6 @@ const refs = {
   timerBox: document.querySelector("#timer-box"),
   questionCard: document.querySelector("#question-card"),
   feedbackPanel: document.querySelector("#feedback-panel"),
-  answerButton: document.querySelector("#answer-button"),
   nextButton: document.querySelector("#next-button"),
   restartButton: document.querySelector("#restart-button"),
   resultView: document.querySelector("#result-view"),
@@ -68,6 +68,7 @@ init();
 
 function init() {
   bindEvents();
+  forceInitialVisibility();
 }
 
 function bindEvents() {
@@ -84,7 +85,6 @@ function bindEvents() {
 
   refs.cancelSetupButton.addEventListener("click", closeOverlay);
   refs.closeOverlayButton.addEventListener("click", closeOverlay);
-  refs.answerButton.addEventListener("click", submitCurrentAnswer);
   refs.nextButton.addEventListener("click", goToNextQuestion);
   refs.restartButton.addEventListener("click", restartCurrentMode);
   refs.retryButton.addEventListener("click", restartCurrentMode);
@@ -188,28 +188,30 @@ function openModeSetup(mode) {
 
 function openOverlay(viewId, badge, subtitle, title) {
   state.currentView = viewId;
-  refs.overlay.hidden = false;
+  setElementVisible(refs.overlay, true);
+  setElementVisible(refs.homePanel, false);
   refs.overlayBadge.textContent = badge;
   refs.overlayTitle.textContent = title;
   refs.overlaySubtitle.textContent = subtitle;
   hideAllOverlayViews();
-  document.getElementById(viewId).hidden = false;
+  setElementVisible(document.getElementById(viewId), true);
 }
 
 function closeOverlay() {
   clearTimer();
   state.currentView = "home";
   state.currentQuiz = null;
-  refs.overlay.hidden = true;
+  setElementVisible(refs.overlay, false);
+  setElementVisible(refs.homePanel, true);
   hideAllOverlayViews();
 }
 
 function hideAllOverlayViews() {
-  refs.setupView.hidden = true;
-  refs.quizView.hidden = true;
-  refs.resultView.hidden = true;
-  refs.historyView.hidden = true;
-  refs.wrongStatsView.hidden = true;
+  setElementVisible(refs.setupView, false);
+  setElementVisible(refs.quizView, false);
+  setElementVisible(refs.resultView, false);
+  setElementVisible(refs.historyView, false);
+  setElementVisible(refs.wrongStatsView, false);
 }
 
 async function startQuiz() {
@@ -370,9 +372,7 @@ function renderCurrentQuestion() {
   refs.progressBox.textContent = `第 ${questionNo} / ${quiz.questions.length} 題`;
   refs.feedbackPanel.hidden = true;
   refs.feedbackPanel.className = "feedback-panel";
-  refs.answerButton.hidden = false;
   refs.nextButton.hidden = true;
-  refs.answerButton.disabled = true;
   quiz.waitingNext = false;
 
   const options = question.options
@@ -398,7 +398,7 @@ function renderCurrentQuestion() {
 
   refs.questionCard.querySelectorAll("input[type='radio']").forEach((input) => {
     input.addEventListener("change", () => {
-      refs.answerButton.disabled = false;
+      submitCurrentAnswer();
     });
   });
 }
@@ -441,7 +441,6 @@ function submitCurrentAnswer() {
     <p>正確答案：${escapeHtml(question.answer)}</p>
   `;
 
-  refs.answerButton.hidden = true;
   refs.nextButton.hidden = false;
   refs.nextButton.textContent =
     quiz.currentIndex === quiz.questions.length - 1 ? "看測驗結果" : "下一題";
@@ -887,12 +886,25 @@ function formatDate(value) {
 }
 
 function showMessage(message) {
-  refs.message.hidden = !message;
+  setElementVisible(refs.message, Boolean(message));
   refs.message.textContent = message;
 }
 
 function hideMessage() {
   showMessage("");
+}
+
+function forceInitialVisibility() {
+  setElementVisible(refs.overlay, false);
+  setElementVisible(refs.message, false);
+  setElementVisible(refs.homePanel, true);
+  hideAllOverlayViews();
+}
+
+function setElementVisible(element, visible) {
+  if (!element) return;
+  element.hidden = !visible;
+  element.style.display = visible ? "" : "none";
 }
 
 function escapeHtml(text) {

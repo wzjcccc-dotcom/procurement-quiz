@@ -14,7 +14,7 @@
         <p>點卡片進入功能。測驗模式先選條件再開始作答，紀錄與錯題統計則進入後再查看。</p>
       </header>
 
-      <main class="panel home-panel">
+      <main id="home-panel" class="panel home-panel">
         <div id="message" class="message" hidden></div>
 
         <section id="home-view" class="stack">
@@ -54,9 +54,8 @@
       </main>
     </div>
 
-    <section id="overlay" class="overlay" hidden>
-      <div class="overlay__backdrop"></div>
-      <div class="overlay__panel">
+    <section id="overlay" class="page-view" hidden>
+      <div class="page-view__panel">
         <div class="overlay__header">
           <div>
             <div id="overlay-badge" class="pill"></div>
@@ -124,7 +123,6 @@
           <div id="feedback-panel" class="feedback-panel" hidden></div>
 
           <div class="actions">
-            <button id="answer-button" class="button button--primary" type="button">送出答案</button>
             <button id="next-button" class="button button--primary" type="button" hidden>下一題</button>
             <button id="restart-button" class="button button--ghost" type="button">重新開始</button>
           </div>
