@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>採購法考古題測驗</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero__badge">採購法考古題測驗網站</div>
+        <h1>用原題庫直接練習，分模式作答、看紀錄、追錯題。</h1>
+        <p>
+          題目內容、答案選項順序與來源序號都保留原樣，適合做章節練習、綜合測驗與科目模擬。
+        </p>
+      </header>
+
+      <main class="layout">
+        <section class="panel panel--primary">
+          <div id="message" class="message" hidden></div>
+
+          <div id="setup-view" class="stack">
+            <div class="section-heading">
+              <span>測驗模式</span>
+              <h2>選擇今天要怎麼練</h2>
+            </div>
+
+            <div class="mode-grid">
+              <button class="mode-card" data-mode="mode1" type="button">
+                <span class="mode-card__eyebrow">模式一</span>
+                <strong>章節隨機 10 題</strong>
+                <p>先選章節與題型，再從該章節抽 10 題。</p>
+              </button>
+              <button class="mode-card" data-mode="mode2" type="button">
+                <span class="mode-card__eyebrow">模式二</span>
+                <strong>全章節平均抽 50 題</strong>
+                <p>先選題型，再平均從各章節抽題。</p>
+              </button>
+              <button class="mode-card" data-mode="mode3" type="button">
+                <span class="mode-card__eyebrow">模式三</span>
+                <strong>科目模擬測驗</strong>
+                <p>依指定章節配額抽題，含 80 分鐘計時與分數。</p>
+              </button>
+            </div>
+
+            <form id="setup-form" class="setup-form">
+              <div id="mode1-config" class="config-card" hidden>
+                <h3>模式一設定</h3>
+                <label>
+                  章節
+                  <select id="mode1-chapter"></select>
+                </label>
+                <label>
+                  題型
+                  <select id="mode1-type">
+                    <option value="true_false">是非題</option>
+                    <option value="multiple_choice">選擇題</option>
+                  </select>
+                </label>
+              </div>
+
+              <div id="mode2-config" class="config-card" hidden>
+                <h3>模式二設定</h3>
+                <label>
+                  題型
+                  <select id="mode2-type">
+                    <option value="true_false">是非題</option>
+                    <option value="multiple_choice">選擇題</option>
+                  </select>
+                </label>
+              </div>
+
+              <div id="mode3-config" class="config-card" hidden>
+                <h3>模式三設定</h3>
+                <label>
+                  科目
+                  <select id="mode3-subject"></select>
+                </label>
+              </div>
+
+              <div class="actions">
+                <button id="start-button" class="button button--primary" type="submit" disabled>
+                  開始測驗
+                </button>
+                <button id="reset-setup-button" class="button button--ghost" type="button">
+                  重新選模式
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div id="quiz-view" hidden>
+            <div class="quiz-header">
+              <div>
+                <div id="quiz-mode-label" class="pill"></div>
+                <h2 id="quiz-title"></h2>
+                <p id="quiz-subtitle" class="muted"></p>
+              </div>
+              <div class="quiz-header__meta">
+                <div id="timer-box" class="timer" hidden></div>
+                <div id="progress-box" class="progress-box"></div>
+              </div>
+            </div>
+            <form id="quiz-form" class="quiz-form"></form>
+            <div class="actions">
+              <button id="submit-button" class="button button--primary" type="button">
+                交卷
+              </button>
+              <button id="restart-button" class="button button--ghost" type="button">
+                重新開始
+              </button>
+            </div>
+          </div>
+
+          <div id="result-view" hidden>
+            <div class="section-heading">
+              <span>測驗結果</span>
+              <h2 id="result-title"></h2>
+            </div>
+            <div id="result-summary" class="result-summary"></div>
+            <div id="result-breakdown" class="result-breakdown"></div>
+            <div class="actions">
+              <button id="retry-button" class="button button--primary" type="button">
+                重新開始
+              </button>
+              <button id="back-home-button" class="button button--ghost" type="button">
+                回到首頁
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <aside class="side-stack">
+          <section class="panel collapsible">
+            <button class="collapse-toggle" type="button" data-target="history-panel">
+              <span>測驗紀錄查詢</span>
+              <strong>點我展開</strong>
+            </button>
+            <div id="history-panel" class="collapse-body" hidden>
+              <div id="history-content" class="stack"></div>
+            </div>
+          </section>
+
+          <section class="panel collapsible">
+            <button class="collapse-toggle" type="button" data-target="wrong-stats-panel">
+              <span>錯題統計</span>
+              <strong>點我展開</strong>
+            </button>
+            <div id="wrong-stats-panel" class="collapse-body" hidden>
+              <div id="wrong-stats-content" class="stack"></div>
+            </div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script src="questions.cleaned.js"></script>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
